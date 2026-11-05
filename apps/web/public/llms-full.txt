@@ -24,3 +24,4 @@ Enterprise Cash & Carry SaaS is designed for large-scale grocery stores, superma
 - Password reset using 32-byte cryptographic hex tokens stored as SHA-256 hashes with 15-minute TTL.
 - Rate limiting: Max 5 auth attempts per 15 minutes per IP/email; 100 requests per minute globally.
 - RFC 7807 Problem Details compliant error responses.
+

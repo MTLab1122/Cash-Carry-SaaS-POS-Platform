@@ -41,3 +41,4 @@ export class EncryptionService {
     return decrypted;
   }
 }
+

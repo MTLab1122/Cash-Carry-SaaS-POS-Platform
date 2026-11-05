@@ -23,3 +23,4 @@
 - `GET /api/v1/inventory/balances`: Real-time stock balance query with low-stock alerts.
 - `POST /api/v1/sync/push`: Idempotent batch sync from offline desktop terminals.
 - `POST /api/v1/ai/chat`: Zero-trust tenant-isolated business advisor.
+

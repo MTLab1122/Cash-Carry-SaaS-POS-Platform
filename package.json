@@ -17,6 +17,7 @@
     "test:ai-isolation": "pnpm --filter @cash-carry/database test:ai-isolation",
     "test:offline-sync": "pnpm --filter @cash-carry/database test:offline-sync",
     "test:e2e": "pnpm --filter @cash-carry/database test:e2e",
+    "test:live-audit": "pnpm --filter @cash-carry/database test:live-audit",
     "db:push": "pnpm --filter @cash-carry/database db:push",
     "db:generate": "pnpm --filter @cash-carry/database generate"
   },

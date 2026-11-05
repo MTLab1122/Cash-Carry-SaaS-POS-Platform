@@ -66,3 +66,4 @@ export function SyncStatusPill({ queueCount = 0, onSyncTrigger }: SyncStatusPill
     </div>
   );
 }
+

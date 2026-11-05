@@ -20,3 +20,4 @@ export interface ILLMProvider {
     },
   ): Promise<LLMCompletionResult>;
 }
+

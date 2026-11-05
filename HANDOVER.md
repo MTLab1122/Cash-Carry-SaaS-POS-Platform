@@ -139,3 +139,4 @@ docker exec -it cashcarry-redis-prod redis-cli FLUSHALL
 1. Export unencrypted BYOK keys via the internal administrative key migration utility.
 2. Update `ENCRYPTION_MASTER_KEY` in environment secrets.
 3. Re-encrypt all tenant API keys and restart the API gateway.
+

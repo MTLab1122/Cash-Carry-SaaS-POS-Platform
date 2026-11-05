@@ -17,6 +17,7 @@
     "test:ai-isolation": "ts-node prisma/ai_verification.ts",
     "test:offline-sync": "ts-node prisma/offline_sync_verification.ts",
     "test:e2e": "ts-node prisma/e2e_journeys.ts",
+    "test:live-audit": "ts-node prisma/live_system_audit.ts",
     "build": "tsc"
   },
   "dependencies": {
