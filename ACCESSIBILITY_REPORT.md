@@ -34,3 +34,4 @@ The UI was evaluated against **WCAG 2.1 Level AA** standards across:
 - **Mobile Viewport (375px - 640px):** Tested on landing page and mobile dashboard; navigation collapses cleanly into responsive drawer or bottom navigation bar.
 - **Tablet Viewport (768px - 1024px):** Grid columns adjust to 2 columns with touch-friendly spacing.
 - **Desktop Viewport (1280px - 1920px):** Full sidebar, multi-column analytics, and dual-pane POS terminal layout.
+

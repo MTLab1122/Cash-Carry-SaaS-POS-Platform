@@ -40,3 +40,4 @@ The platform enforces zero-trust architecture across all layers:
 - Medium Vulnerabilities: `0`
 - Low Vulnerabilities: `0`
 - Security Rating: **A+ (Enterprise Hardened)**
+

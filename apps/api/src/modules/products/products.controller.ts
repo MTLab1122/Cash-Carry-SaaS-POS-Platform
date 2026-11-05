@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -28,6 +38,27 @@ export class ProductsController {
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 50,
     });
+  }
+
+  @Get('categories')
+  getCategories(@CurrentUser('tenantId') tenantId: string) {
+    return this.productsService.getCategories(tenantId);
+  }
+
+  @Post('categories')
+  createCategory(
+    @CurrentUser('tenantId') tenantId: string,
+    @Body() dto: { name: string; description?: string },
+  ) {
+    return this.productsService.createCategory(tenantId, dto);
+  }
+
+  @Post('ai-suggest')
+  aiSuggest(
+    @CurrentUser('tenantId') tenantId: string,
+    @Body() body: { prompt: string },
+  ) {
+    return this.productsService.aiSuggest(tenantId, body.prompt);
   }
 
   @Get('scan/:code')
@@ -76,4 +107,3 @@ export class ProductsController {
     return this.productsService.bulkImport(tenantId, body.branchId || branchId, body.items);
   }
 }
-

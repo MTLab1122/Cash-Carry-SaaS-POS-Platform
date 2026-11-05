@@ -59,10 +59,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const profile = await apiFetch('/auth/me');
           setUser(profile);
           setTenant(profile.tenant);
-          if (profile.tenant?.branches) {
-            setBranches(profile.tenant.branches);
+          let bList = profile.tenant?.branches || [];
+          if (!bList || bList.length === 0) {
+            try {
+              bList = await apiFetch('/branches');
+            } catch (err) {
+              bList = [];
+            }
+          }
+          if (bList && bList.length > 0) {
+            setBranches(bList);
             const savedBranchId = localStorage.getItem('cashcarry_branch_id');
-            const match = profile.tenant.branches.find((b: any) => b.id === savedBranchId) || profile.tenant.branches[0];
+            const match = bList.find((b: any) => b.id === savedBranchId) || bList.find((b: any) => b.isMain) || bList[0];
             setCurrentBranch(match);
           }
         } else {

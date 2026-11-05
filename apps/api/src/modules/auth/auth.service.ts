@@ -25,12 +25,12 @@ export class AuthService {
       }
       user = await this.prisma.user.findFirst({
         where: { email, tenantId: tenant.id },
-        include: { tenant: true, branch: true },
+        include: { tenant: { include: { branches: true } }, branch: true },
       });
     } else {
       user = await this.prisma.user.findFirst({
         where: { email },
-        include: { tenant: true, branch: true },
+        include: { tenant: { include: { branches: true } }, branch: true },
       });
     }
 
@@ -418,6 +418,7 @@ export class AuthService {
       include: {
         tenant: {
           include: {
+            branches: true,
             subscriptions: {
               include: { plan: true },
               orderBy: { createdAt: 'desc' },

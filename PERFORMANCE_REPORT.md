@@ -38,3 +38,4 @@ Performance was benchmarked across:
 - **Frontend Memory Footprint:** ~72 MB RSS (Next.js Standalone).
 - **Database Query Time:** Sub-5ms average across all indexed queries (`tenantId`, `barcode`, `sku`, `phone`).
 - **Memory Leaks:** 0 detected over 1,000 synthetic test cycles.
+

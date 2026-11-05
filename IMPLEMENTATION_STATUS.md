@@ -10,7 +10,7 @@
 | **Multi-Tenant SaaS Engine** | PostgreSQL / SQLite schema with strict `tenantId` boundaries | **Verified** |
 | **SaaS Subscription Engine** | Starter, Professional, Business, Enterprise with usage limits | **Verified** |
 | **Granular RBAC** | 9 enterprise roles mapped to granular permission scopes | **Verified** |
-| **Product & Barcode Management** | EAN-13 check-digit calculation, Code 128, shelf label printing | **Verified** |
+| **Product & Barcode Management** | EAN-13 check-digit calculation, Code 128, thermal label printing, AI auto-fill assistant, defensive multi-branch resolution | **Verified** |
 | **POS Billing Terminal** | Multi-tender checkout, cart management, sub-500ms scanning | **Verified** |
 | **Blind Cashier Shift Balancing**| Open float, blind count submission, variance audit logging | **Verified** |
 | **POS Returns & Shrinkage** | Over-return prevention, `ShrinkageLedger` segregation | **Verified** |
@@ -36,6 +36,8 @@
 - `pnpm run test:ai-isolation`: **15 Passed, 0 Failed**
 - `pnpm run test:offline-sync`: **13 Passed, 0 Failed**
 - `pnpm run test:e2e`: **22 Passed, 0 Failed**
-- `pnpm run test:live-audit`: **32 Passed, 0 Failed**
+- `pnpm run test:products`: **13 Passed, 0 Failed**
+- `pnpm run test:live-audit`: **33 Passed, 0 Failed**
 
-**Total Test Assertions Passed: 155 / 155 (100% Success Rate)**
+**Total Test Assertions Passed: 169 / 169 (100% Success Rate)**
+
