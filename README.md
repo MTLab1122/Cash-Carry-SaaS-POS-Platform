@@ -117,3 +117,4 @@ The automated test runner (`pnpm --filter @cash-carry/database test:scenarios`) 
 - `[PASS]` **10. Subscription Limits**: Restricts branch and terminal creation past provisioned plan limits.
 - `[PASS]` **11. Financial Reconciliation**: Revenue and profit metrics accurately reconcile with transaction sums.
 - `[PASS]` **12. AI Isolation**: Business intelligence assistant queries strictly within tenant boundaries.
+

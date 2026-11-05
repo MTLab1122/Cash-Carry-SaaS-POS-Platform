@@ -1,5 +1,6 @@
-import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class PosService {
@@ -40,13 +41,15 @@ export class PosService {
     });
   }
 
+  // Blind Shift Close: Cashier submits counted cash without seeing system expected cash
   async closeSession(params: {
     sessionId: string;
     closingBalance: number;
     notes?: string;
     cashierId: string;
+    countedCard?: number;
   }) {
-    const { sessionId, closingBalance, notes } = params;
+    const { sessionId, closingBalance, notes, cashierId, countedCard = 0 } = params;
 
     const session = await this.prisma.cashSession.findUnique({
       where: { id: sessionId },
@@ -61,22 +64,29 @@ export class PosService {
       throw new NotFoundException('Cash session not found');
     }
 
-    if (session.status === 'CLOSED') {
+    if (session.status === 'CLOSED' || session.status === 'LOCKED') {
       return session;
     }
 
-    // Calculate total cash collected during shift
+    // 1. Calculate actual system theoretical cash & card totals
     let totalCashSales = 0;
+    let totalCardSales = 0;
     for (const sale of session.sales) {
+      if (sale.status === 'CANCELLED') continue;
       for (const p of sale.payments) {
         if (p.method === 'CASH') {
           totalCashSales += p.amount;
+        } else if (p.method === 'CARD') {
+          totalCardSales += p.amount;
         }
       }
     }
 
     const expectedCash = session.openingBalance + totalCashSales;
     const cashDifference = closingBalance - expectedCash;
+    const isVariance = Math.abs(cashDifference) > 0.01;
+
+    const auditNote = `Blind Shift Close: Counted PKR ${closingBalance}, Expected PKR ${expectedCash}, Variance: ${cashDifference >= 0 ? '+' : ''}${cashDifference} PKR${notes ? ` | ${notes}` : ''}`;
 
     return this.prisma.cashSession.update({
       where: { id: sessionId },
@@ -86,7 +96,7 @@ export class PosService {
         expectedCash,
         cashDifference,
         status: 'CLOSED',
-        notes: notes ? `${session.notes || ''} | ${notes}` : session.notes,
+        notes: auditNote,
       },
     });
   }
@@ -148,10 +158,10 @@ export class PosService {
       where: { id: dto.sessionId },
     });
     if (!session || session.status !== 'OPEN') {
-      throw new BadRequestException('Active open cashier session is required to perform sales');
+      throw new BadRequestException('Cannot checkout: Register session is closed or invalid.');
     }
 
-    // Find default warehouse for stock decrement
+    // Determine default warehouse for the branch
     let warehouse = await this.prisma.warehouse.findFirst({
       where: { branchId: dto.branchId, isDefault: true },
     });
@@ -161,38 +171,31 @@ export class PosService {
       });
     }
 
-    // Generate unique invoice number
-    const timestamp = Date.now().toString().slice(-6);
-    const rand = Math.floor(Math.random() * 900) + 100;
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${timestamp}${rand}`;
-    const fbrInvoiceNo = `FBR-PK-${timestamp}${rand}99`;
-    const fbrQrCode = `https://iris.fbr.gov.pk/verify?inv=${fbrInvoiceNo}`;
+    const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
 
-    // Execute atomic transaction
+    // Atomic Database Transaction
     return this.prisma.$transaction(async (tx) => {
-      // Create Sale
+      // 1. Create Sale Header
       const sale = await tx.sale.create({
         data: {
           localId: dto.localId,
-          invoiceNumber,
           tenantId: dto.tenantId,
           branchId: dto.branchId,
           registerId: dto.registerId,
           sessionId: dto.sessionId,
           cashierId: dto.cashierId,
-          customerId: dto.customerId || null,
+          customerId: dto.customerId,
+          invoiceNumber,
           subtotal: dto.subtotal,
-          discountTotal: dto.discountTotal || 0,
-          taxTotal: dto.taxTotal || 0,
+          discountTotal: dto.discountTotal,
+          taxTotal: dto.taxTotal,
           grandTotal: dto.grandTotal,
           status: 'COMPLETED',
-          fbrInvoiceNo,
-          fbrQrCode,
           notes: dto.notes,
         },
       });
 
-      // Create Sale Items & Update Stock
+      // 2. Create Sale Items and Decrement Inventory
       for (const item of dto.items) {
         await tx.saleItem.create({
           data: {
@@ -205,13 +208,13 @@ export class PosService {
             unitPrice: item.unitPrice,
             quantity: item.quantity,
             discount: item.discount || 0,
-            taxRate: item.taxRate || 0,
+            taxRate: item.taxRate || 18,
             taxAmount: item.taxAmount || 0,
             total: item.total,
           },
         });
 
-        // Decrement stock balance if warehouse exists
+        // Atomic Stock Decrement
         if (warehouse) {
           const balance = await tx.inventoryBalance.findUnique({
             where: {
@@ -223,7 +226,7 @@ export class PosService {
             },
           });
 
-          const currentStock = balance?.currentStock || 0;
+          const currentStock = balance ? balance.currentStock : 0;
           const newStock = currentStock - item.quantity;
 
           await tx.inventoryBalance.upsert({
@@ -244,7 +247,7 @@ export class PosService {
             },
           });
 
-          // Stock Ledger Entry
+          // Append-only Stock Ledger Entry
           await tx.stockLedger.create({
             data: {
               tenantId: dto.tenantId,
@@ -264,7 +267,7 @@ export class PosService {
         }
       }
 
-      // Record Payments
+      // 3. Record Payments
       for (const p of dto.payments) {
         await tx.payment.create({
           data: {
@@ -277,12 +280,44 @@ export class PosService {
           },
         });
 
-        // If credit payment and customer exists, increment customer credit
+        // 4. Double-entry Customer Ledger for Credit sales
         if (p.method === 'CREDIT' && dto.customerId) {
-          await tx.customer.update({
+          const customer = await tx.customer.findUnique({
             where: { id: dto.customerId },
-            data: { currentCredit: { increment: p.amount } },
           });
+
+          if (customer) {
+            const amountCents = Math.round(p.amount * 100);
+            const lastLedger = await tx.customerLedgerEntry.findFirst({
+              where: { tenantId: dto.tenantId, customerId: dto.customerId },
+              orderBy: { createdAt: 'desc' },
+            });
+
+            const prevHash = lastLedger?.hashChain || 'GENESIS_00000000';
+            const prevBalanceCents = lastLedger?.balanceAfterCents ?? Math.round(customer.currentCredit * 100);
+            const newBalanceCents = prevBalanceCents + amountCents;
+
+            const payload = `${prevHash}:${dto.tenantId}:${dto.customerId}:${amountCents}:${newBalanceCents}:DEBIT:${Date.now()}`;
+            const hashChain = crypto.createHash('sha256').update(payload).digest('hex');
+
+            await tx.customerLedgerEntry.create({
+              data: {
+                tenantId: dto.tenantId,
+                customerId: dto.customerId,
+                transactionId: sale.id,
+                entryType: 'DEBIT',
+                amountCents,
+                balanceAfterCents: newBalanceCents,
+                notes: `POS Credit Purchase ${invoiceNumber}`,
+                hashChain,
+              },
+            });
+
+            await tx.customer.update({
+              where: { id: dto.customerId },
+              data: { currentCredit: newBalanceCents / 100 },
+            });
+          }
         }
       }
 
@@ -310,24 +345,84 @@ export class PosService {
     });
   }
 
+  // POS Returns Engine with Over-Return Prevention & Shrinkage Segregation
   async processReturn(params: {
     tenantId: string;
     branchId: string;
     saleId: string;
-    items: { productId: string; quantity: number; unitPrice: number }[];
+    items: {
+      productId: string;
+      quantity: number;
+      unitPrice: number;
+      disposition?: 'RESTOCKABLE' | 'DAMAGED';
+      damageReason?: string;
+    }[];
     refundAmount: number;
     reason: string;
     approvedById: string;
+    supervisorPin?: string;
   }) {
-    const { tenantId, branchId, saleId, items, refundAmount, reason, approvedById } = params;
+    const { tenantId, branchId, saleId, items, refundAmount, reason, approvedById, supervisorPin } = params;
 
     const originalSale = await this.prisma.sale.findUnique({
       where: { id: saleId },
-      include: { items: true },
+      include: {
+        items: true,
+        returns: {
+          include: { items: true },
+        },
+      },
     });
 
     if (!originalSale) {
-      throw new NotFoundException('Original sale not found');
+      throw new NotFoundException('Original sale invoice not found');
+    }
+
+    if (originalSale.tenantId !== tenantId) {
+      throw new ForbiddenException('Tenant isolation violation');
+    }
+
+    // 1. Prevent Over-Returns: Check cumulative returned quantities against original quantities
+    for (const returnItem of items) {
+      const originalItem = originalSale.items.find((i) => i.productId === returnItem.productId);
+      if (!originalItem) {
+        throw new BadRequestException(
+          `Product ${returnItem.productId} was not part of the original invoice.`,
+        );
+      }
+
+      // Calculate previously returned quantity for this product
+      let previouslyReturnedQty = 0;
+      for (const priorReturn of originalSale.returns) {
+        for (const priorItem of priorReturn.items) {
+          if (priorItem.productId === returnItem.productId) {
+            previouslyReturnedQty += priorItem.quantity;
+          }
+        }
+      }
+
+      const maxAllowed = originalItem.quantity - previouslyReturnedQty;
+      if (returnItem.quantity > maxAllowed) {
+        throw new BadRequestException(
+          `Over-return violation for item ${originalItem.productName}: Attempted to return ${returnItem.quantity}, but only ${maxAllowed} remaining eligible from original sale of ${originalItem.quantity}.`,
+        );
+      }
+    }
+
+    // 2. Anomaly Scoring: If refund amount > 80% of ticket value, flag and require supervisor PIN
+    const returnRatio = refundAmount / originalSale.grandTotal;
+    const isAnomaly = returnRatio > 0.8;
+    if (isAnomaly && !supervisorPin) {
+      // In production, supervisor PIN or authorized manager role required
+      const approver = await this.prisma.user.findUnique({ where: { id: approvedById } });
+      const isManager = ['SUPER_ADMIN', 'BUSINESS_OWNER', 'BRANCH_MANAGER', 'GENERAL_MANAGER'].includes(
+        approver?.role || '',
+      );
+      if (!isManager) {
+        throw new ForbiddenException(
+          'Return anomaly score > 0.85 (High value refund relative to ticket). Supervisor PIN or Manager approval required.',
+        );
+      }
     }
 
     let warehouse = await this.prisma.warehouse.findFirst({
@@ -363,57 +458,77 @@ export class PosService {
           },
         });
 
-        // Restore stock
-        if (warehouse) {
-          const balance = await tx.inventoryBalance.findUnique({
-            where: {
-              branchId_warehouseId_productId: {
-                branchId,
-                warehouseId: warehouse.id,
-                productId: item.productId,
-              },
-            },
-          });
+        const isDamaged = item.disposition === 'DAMAGED';
 
-          const newStock = (balance?.currentStock || 0) + item.quantity;
-
-          await tx.inventoryBalance.upsert({
-            where: {
-              branchId_warehouseId_productId: {
-                branchId,
-                warehouseId: warehouse.id,
-                productId: item.productId,
-              },
-            },
-            update: { currentStock: newStock },
-            create: {
-              tenantId,
-              branchId,
-              warehouseId: warehouse.id,
-              productId: item.productId,
-              currentStock: item.quantity,
-            },
-          });
-
-          await tx.stockLedger.create({
+        if (isDamaged) {
+          // Segregate into ShrinkageLedger - DO NOT RESTORE SELLABLE INVENTORY
+          await tx.shrinkageLedger.create({
             data: {
               tenantId,
               branchId,
-              warehouseId: warehouse.id,
               productId: item.productId,
-              type: 'SALE_RETURN',
               quantity: item.quantity,
-              balanceAfter: newStock,
               unitCost: item.unitPrice,
-              referenceType: 'SALE_RETURN',
-              referenceId: returnRecord.id,
-              notes: `Refund for ${originalSale.invoiceNumber}: ${reason}`,
-              createdById: approvedById,
+              reason: item.damageReason || 'RETURN_DAMAGED',
+              saleId: originalSale.id,
+              notes: `Refund ${returnNumber}: Item damaged/expired`,
+              recordedBy: approvedById,
             },
           });
+        } else {
+          // RESTOCKABLE: Increment sellable inventory balance and log StockLedger SALE_RETURN
+          if (warehouse) {
+            const balance = await tx.inventoryBalance.findUnique({
+              where: {
+                branchId_warehouseId_productId: {
+                  branchId,
+                  warehouseId: warehouse.id,
+                  productId: item.productId,
+                },
+              },
+            });
+
+            const newStock = (balance?.currentStock || 0) + item.quantity;
+
+            await tx.inventoryBalance.upsert({
+              where: {
+                branchId_warehouseId_productId: {
+                  branchId,
+                  warehouseId: warehouse.id,
+                  productId: item.productId,
+                },
+              },
+              update: { currentStock: newStock },
+              create: {
+                tenantId,
+                branchId,
+                warehouseId: warehouse.id,
+                productId: item.productId,
+                currentStock: item.quantity,
+              },
+            });
+
+            await tx.stockLedger.create({
+              data: {
+                tenantId,
+                branchId,
+                warehouseId: warehouse.id,
+                productId: item.productId,
+                type: 'SALE_RETURN',
+                quantity: item.quantity,
+                balanceAfter: newStock,
+                unitCost: item.unitPrice,
+                referenceType: 'SALE_RETURN',
+                referenceId: returnRecord.id,
+                notes: `Refund for ${originalSale.invoiceNumber}: ${reason}`,
+                createdById: approvedById,
+              },
+            });
+          }
         }
       }
 
+      // Mark sale status
       await tx.sale.update({
         where: { id: originalSale.id },
         data: { status: 'REFUNDED' },

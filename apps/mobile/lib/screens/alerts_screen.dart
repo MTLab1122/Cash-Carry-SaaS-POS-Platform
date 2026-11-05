@@ -98,3 +98,4 @@ class AlertsScreen extends StatelessWidget {
     );
   }
 }
+

@@ -53,3 +53,4 @@ export class TenantsController {
     return this.tenantsService.createTenantUser(tenantId, dto);
   }
 }
+

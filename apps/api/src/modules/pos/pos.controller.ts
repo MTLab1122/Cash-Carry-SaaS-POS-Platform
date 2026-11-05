@@ -1,10 +1,11 @@
 import { Controller, Post, Get, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { PosService } from './pos.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { EmailVerifiedGuard } from '../../common/guards/email-verified.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('pos')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, EmailVerifiedGuard)
 export class PosController {
   constructor(private readonly posService: PosService) {}
 
@@ -100,3 +101,4 @@ export class PosController {
     });
   }
 }
+

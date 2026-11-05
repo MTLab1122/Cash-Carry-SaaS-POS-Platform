@@ -17,7 +17,6 @@ import {
   Sparkles,
   ShieldAlert,
   Settings,
-  ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -25,23 +24,147 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { user, tenant } = useAuth();
 
-  const navigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Products', href: '/products', icon: Package },
-    { name: 'Inventory', href: '/inventory', icon: Boxes },
-    { name: 'POS Billing', href: '/pos', icon: ShoppingCart, highlight: true },
-    { name: 'Sales & Returns', href: '/sales', icon: Receipt },
-    { name: 'Purchases (GRN)', href: '/purchases', icon: Truck },
-    { name: 'Suppliers', href: '/suppliers', icon: Building2 },
-    { name: 'Customers', href: '/customers', icon: Users },
-    { name: 'Finance & P&L', href: '/finance', icon: DollarSign },
-    { name: 'Reports & Analytics', href: '/reports', icon: BarChart3 },
-    { name: 'AI Assistant', href: '/ai-assistant', icon: Sparkles, badge: 'AI' },
-    ...(user?.role === 'SUPER_ADMIN'
-      ? [{ name: 'SaaS Super Admin', href: '/admin', icon: ShieldAlert, badge: 'SAAS' }]
-      : []),
-    { name: 'Settings', href: '/settings', icon: Settings },
+  const allNavigation = [
+    {
+      name: 'Dashboard',
+      href: '/',
+      icon: LayoutDashboard,
+      roles: [
+        'SUPER_ADMIN',
+        'BUSINESS_OWNER',
+        'GENERAL_MANAGER',
+        'BRANCH_MANAGER',
+        'INVENTORY_MANAGER',
+        'PURCHASE_MANAGER',
+        'ACCOUNTANT',
+        'AUDITOR',
+      ],
+    },
+    {
+      name: 'POS Billing',
+      href: '/pos',
+      icon: ShoppingCart,
+      highlight: true,
+      roles: ['SUPER_ADMIN', 'BUSINESS_OWNER', 'GENERAL_MANAGER', 'BRANCH_MANAGER', 'CASHIER'],
+    },
+    {
+      name: 'Products',
+      href: '/products',
+      icon: Package,
+      roles: [
+        'SUPER_ADMIN',
+        'BUSINESS_OWNER',
+        'GENERAL_MANAGER',
+        'BRANCH_MANAGER',
+        'INVENTORY_MANAGER',
+        'PURCHASE_MANAGER',
+      ],
+    },
+    {
+      name: 'Inventory',
+      href: '/inventory',
+      icon: Boxes,
+      roles: [
+        'SUPER_ADMIN',
+        'BUSINESS_OWNER',
+        'GENERAL_MANAGER',
+        'BRANCH_MANAGER',
+        'INVENTORY_MANAGER',
+      ],
+    },
+    {
+      name: 'Sales & Returns',
+      href: '/sales',
+      icon: Receipt,
+      roles: [
+        'SUPER_ADMIN',
+        'BUSINESS_OWNER',
+        'GENERAL_MANAGER',
+        'BRANCH_MANAGER',
+        'CASHIER',
+        'ACCOUNTANT',
+        'AUDITOR',
+      ],
+    },
+    {
+      name: 'Purchases (GRN)',
+      href: '/purchases',
+      icon: Truck,
+      roles: [
+        'SUPER_ADMIN',
+        'BUSINESS_OWNER',
+        'GENERAL_MANAGER',
+        'BRANCH_MANAGER',
+        'PURCHASE_MANAGER',
+        'ACCOUNTANT',
+      ],
+    },
+    {
+      name: 'Suppliers',
+      href: '/suppliers',
+      icon: Building2,
+      roles: ['SUPER_ADMIN', 'BUSINESS_OWNER', 'GENERAL_MANAGER', 'PURCHASE_MANAGER'],
+    },
+    {
+      name: 'Customers',
+      href: '/customers',
+      icon: Users,
+      roles: [
+        'SUPER_ADMIN',
+        'BUSINESS_OWNER',
+        'GENERAL_MANAGER',
+        'BRANCH_MANAGER',
+        'ACCOUNTANT',
+      ],
+    },
+    {
+      name: 'Finance & P&L',
+      href: '/finance',
+      icon: DollarSign,
+      roles: ['SUPER_ADMIN', 'BUSINESS_OWNER', 'GENERAL_MANAGER', 'ACCOUNTANT', 'AUDITOR'],
+    },
+    {
+      name: 'Reports & Analytics',
+      href: '/reports',
+      icon: BarChart3,
+      roles: [
+        'SUPER_ADMIN',
+        'BUSINESS_OWNER',
+        'GENERAL_MANAGER',
+        'BRANCH_MANAGER',
+        'INVENTORY_MANAGER',
+        'PURCHASE_MANAGER',
+        'ACCOUNTANT',
+        'AUDITOR',
+      ],
+    },
+    {
+      name: 'AI Assistant',
+      href: '/ai-assistant',
+      icon: Sparkles,
+      badge: 'AI',
+      roles: ['SUPER_ADMIN', 'BUSINESS_OWNER', 'GENERAL_MANAGER', 'BRANCH_MANAGER'],
+    },
+    {
+      name: 'SaaS Super Admin',
+      href: '/admin',
+      icon: ShieldAlert,
+      badge: 'SAAS',
+      roles: ['SUPER_ADMIN'],
+    },
+    {
+      name: 'Settings',
+      href: '/settings',
+      icon: Settings,
+      roles: ['SUPER_ADMIN', 'BUSINESS_OWNER', 'GENERAL_MANAGER'],
+    },
   ];
+
+  // Filter based on logged-in user role (or allow all if still loading / not set)
+  const navigation = allNavigation.filter((item) => {
+    if (!user?.role) return true;
+    return item.roles.includes(user.role);
+  });
 
   return (
     <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col flex-shrink-0 min-h-screen border-r border-slate-800">

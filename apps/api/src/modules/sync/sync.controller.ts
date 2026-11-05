@@ -8,6 +8,20 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class SyncController {
   constructor(private readonly syncService: SyncService) {}
 
+  @Get('ping')
+  ping(
+    @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return {
+      status: 'ok',
+      serverTime: new Date().toISOString(),
+      tenantId,
+      userId,
+      version: '1.0.0',
+    };
+  }
+
   @Post('batch')
   syncBatch(
     @CurrentUser('tenantId') tenantId: string,
@@ -36,5 +50,10 @@ export class SyncController {
     @Query('branchId') branchId?: string,
   ) {
     return this.syncService.getDesktopDataCache(tenantId, branchId || userBranchId);
+  }
+
+  @Get('negative-stock')
+  reconcileNegativeStock(@CurrentUser('tenantId') tenantId: string) {
+    return this.syncService.reconcileNegativeStock(tenantId);
   }
 }

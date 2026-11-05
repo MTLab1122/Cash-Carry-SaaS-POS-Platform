@@ -32,3 +32,4 @@ export class BranchesController {
     return this.branchesService.createRegister(tenantId, branchId, body);
   }
 }
+

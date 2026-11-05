@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PosService } from '../pos/pos.service';
 
@@ -10,6 +10,40 @@ export class SyncService {
     private prisma: PrismaService,
     private posService: PosService,
   ) {}
+
+  async handleIdempotentMutation(params: {
+    tenantId: string;
+    idempotencyKey: string;
+    entityType: string;
+    execute: () => Promise<any>;
+  }) {
+    const { tenantId, idempotencyKey, entityType, execute } = params;
+
+    // 1. Check if mutation already processed
+    const existing = await this.prisma.processedMutation.findUnique({
+      where: { mutationId: idempotencyKey },
+    });
+
+    if (existing) {
+      this.logger.log(`Idempotency hit: returning cached response for key ${idempotencyKey}`);
+      return JSON.parse(existing.responseBody);
+    }
+
+    // 2. Execute mutation atomically
+    const result = await execute();
+
+    // 3. Persist mutation record
+    await this.prisma.processedMutation.create({
+      data: {
+        tenantId,
+        mutationId: idempotencyKey,
+        entityType,
+        responseBody: JSON.stringify(result),
+      },
+    });
+
+    return result;
+  }
 
   async syncBatch(params: {
     deviceId: string;
@@ -29,18 +63,26 @@ export class SyncService {
     };
 
     for (const tx of transactions) {
+      const localId = tx.localId || tx.id;
       try {
         if (tx.type === 'SALE' || tx.items) {
-          await this.posService.processCheckout({
-            ...tx,
-            localId: tx.localId || tx.id,
+          await this.handleIdempotentMutation({
             tenantId,
-            branchId: tx.branchId || branchId,
-            cashierId: tx.cashierId || cashierId,
+            idempotencyKey: localId,
+            entityType: 'SALE',
+            execute: async () => {
+              return this.posService.processCheckout({
+                ...tx,
+                localId,
+                tenantId,
+                branchId: tx.branchId || branchId,
+                cashierId: tx.cashierId || cashierId,
+              });
+            },
           });
 
           results.synced++;
-          results.syncedIds.push(tx.localId || tx.id);
+          results.syncedIds.push(localId);
 
           // Record in sync queue log
           await this.prisma.syncQueue.create({
@@ -48,7 +90,7 @@ export class SyncService {
               deviceId,
               tenantId,
               entityType: 'SALE',
-              localId: tx.localId || tx.id,
+              localId,
               status: 'SYNCED',
               payload: JSON.stringify(tx),
               syncedAt: new Date(),
@@ -56,10 +98,10 @@ export class SyncService {
           });
         }
       } catch (err: any) {
-        this.logger.error(`Sync error on localId ${tx.localId || tx.id}: ${err.message}`);
+        this.logger.error(`Sync error on localId ${localId}: ${err.message}`);
         results.failed++;
         results.errors.push({
-          localId: tx.localId || tx.id,
+          localId,
           error: err.message,
         });
 
@@ -68,7 +110,7 @@ export class SyncService {
             deviceId,
             tenantId,
             entityType: 'SALE',
-            localId: tx.localId || tx.id,
+            localId,
             status: 'FAILED',
             payload: JSON.stringify(tx),
             errorMessage: err.message,
@@ -81,7 +123,6 @@ export class SyncService {
   }
 
   async getDesktopDataCache(tenantId: string, branchId: string) {
-    // Returns full snapshot for desktop SQLite database to seed local offline cache
     const [products, categories, customers, registers] = await Promise.all([
       this.prisma.product.findMany({
         where: { tenantId, isActive: true },
@@ -100,21 +141,50 @@ export class SyncService {
       name: p.name,
       sku: p.sku,
       barcode: p.barcode,
+      categoryName: p.category.name,
       retailPrice: p.retailPrice,
       purchasePrice: p.purchasePrice,
-      taxRate: p.taxRate,
       unit: p.unit,
-      categoryId: p.categoryId,
-      isWeighted: p.isWeighted,
-      currentStock: p.inventoryBalances.reduce((sum, b) => sum + b.currentStock, 0),
+      currentStock: p.inventoryBalances[0]?.currentStock || 0,
+      minStockLevel: p.minStockLevel,
     }));
 
     return {
-      timestamp: new Date().toISOString(),
+      syncedAt: new Date().toISOString(),
       products: formattedProducts,
       categories,
       customers,
       registers,
+    };
+  }
+
+  async reconcileNegativeStock(tenantId: string) {
+    const negativeBalances = await this.prisma.inventoryBalance.findMany({
+      where: {
+        tenantId,
+        currentStock: { lt: 0 },
+      },
+      include: {
+        product: true,
+        branch: true,
+      },
+    });
+
+    const reconciliationAlerts = negativeBalances.map((b) => ({
+      productId: b.productId,
+      productName: b.product.name,
+      sku: b.product.sku,
+      branchId: b.branchId,
+      branchName: b.branch.name,
+      negativeStock: b.currentStock,
+      status: 'AUDIT_SCHEDULED',
+      message: `Negative stock variance detected (${b.currentStock} units). Physical count cycle required.`,
+    }));
+
+    return {
+      reconciledAt: new Date().toISOString(),
+      discrepancyCount: negativeBalances.length,
+      alerts: reconciliationAlerts,
     };
   }
 }

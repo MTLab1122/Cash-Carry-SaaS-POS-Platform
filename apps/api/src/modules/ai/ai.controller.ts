@@ -32,3 +32,4 @@ export class AiController {
     return this.aiService.getInventoryInsights(tenantId, branchId || userBranchId);
   }
 }
+

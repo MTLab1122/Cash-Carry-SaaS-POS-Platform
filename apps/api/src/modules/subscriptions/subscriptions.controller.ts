@@ -27,3 +27,4 @@ export class SubscriptionsController {
     return this.subscriptionsService.upgradePlan(tenantId, body.planId, body.billingCycle);
   }
 }
+

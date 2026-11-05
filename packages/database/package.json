@@ -10,9 +10,17 @@
     "migrate:deploy": "prisma migrate deploy",
     "seed": "ts-node prisma/seed.ts",
     "test:scenarios": "ts-node prisma/mandatory_scenarios.ts",
+    "test:security": "ts-node prisma/security_verification.ts",
+    "test:routing": "ts-node prisma/routing_verification.ts",
+    "test:seo": "ts-node prisma/seo_verification.ts",
+    "test:financials": "ts-node prisma/financial_verification.ts",
+    "test:ai-isolation": "ts-node prisma/ai_verification.ts",
+    "test:offline-sync": "ts-node prisma/offline_sync_verification.ts",
+    "test:e2e": "ts-node prisma/e2e_journeys.ts",
     "build": "tsc"
   },
   "dependencies": {
+    "@cash-carry/shared": "workspace:*",
     "@prisma/client": "^5.14.0",
     "bcryptjs": "^2.4.3"
   },

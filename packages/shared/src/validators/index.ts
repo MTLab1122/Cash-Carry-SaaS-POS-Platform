@@ -89,3 +89,4 @@ export const closeShiftSchema = z.object({
   closingBalance: z.number().min(0),
   notes: z.string().optional()
 });
+

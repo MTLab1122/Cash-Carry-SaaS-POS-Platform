@@ -1,10 +1,11 @@
 import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { EmailVerifiedGuard } from '../../common/guards/email-verified.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('inventory')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, EmailVerifiedGuard)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
@@ -90,3 +91,4 @@ export class InventoryController {
     });
   }
 }
+

@@ -31,9 +31,30 @@ export class AuthController {
     return this.authService.registerTenant(body);
   }
 
+  @Post('forgot-password')
+  async forgotPassword(@Body() body: { email: string; tenantSlug?: string }) {
+    return this.authService.forgotPassword(body);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() body: { token: string; newPassword: string }) {
+    return this.authService.resetPassword(body);
+  }
+
+  @Post('verify-email')
+  async verifyEmail(@Body() body: { token: string }) {
+    return this.authService.verifyEmail(body.token);
+  }
+
+  @Post('refresh')
+  async refresh(@Body() body: { refreshToken: string }) {
+    return this.authService.refreshToken(body.refreshToken);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async getMe(@CurrentUser('id') userId: string) {
     return this.authService.getMe(userId);
   }
 }
+

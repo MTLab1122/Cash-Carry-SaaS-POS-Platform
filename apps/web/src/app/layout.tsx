@@ -2,6 +2,7 @@ import './globals.css';
 import { AuthProvider } from '../context/AuthContext';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
+import { CommandPalette } from '../components/CommandPalette';
 
 export const metadata = {
   title: 'Enterprise Cash & Carry Management & POS SaaS',
@@ -26,6 +27,7 @@ export default function RootLayout({
               </main>
             </div>
           </div>
+          <CommandPalette />
         </AuthProvider>
       </body>
     </html>

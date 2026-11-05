@@ -1,0 +1,25 @@
+# Enterprise Cash & Carry Management & POS SaaS (Pakistan Retail Ecosystem)
+
+> The complete multi-tenant, offline-first supermarket, cash & carry, and wholesale ERP/POS platform designed for high-throughput retail operations with FBR Tier-1 e-invoicing compliance.
+
+## Core Capabilities
+- **Multi-Tenant SaaS Architecture:** Cryptographic data isolation per business tenant across database, file storage, and AI pipelines.
+- **Offline-First Desktop POS:** High-speed Electron desktop client with transactional local database, zero C++ native compile requirements, background outbox sync with idempotent mutations via `X-Idempotency-Key`.
+- **Complete Inventory Ledger:** Double-entry stock ledger, automated batch tracking, FIFO stock depletion, barcode label generation (EAN-13, Code 128, QR), and shrinkage audit tracking.
+- **Pakistan Tax & Compliance:** Full PKR currency support, default 18% GST calculation, NTN/STRN invoice printing, and FBR Tier-1 e-invoicing API integration format.
+- **AI Business Intelligence:** Plug-and-play LLM connector (OpenAI, Anthropic, Gemini, Ollama), customer churn forecasting, demand prediction, and automated inventory reorder recommendations.
+
+## System Architecture
+- **Web App:** Next.js 14 App Router, TypeScript, Tailwind CSS, shadcn/ui.
+- **Backend API:** NestJS modular monolith, REST v1 `/api/v1`, WebSocket live sync, Swagger `/api/docs`.
+- **Database:** PostgreSQL (with SQLite zero-config local development mode), Prisma ORM.
+- **Desktop POS:** Electron, React, TypeScript, Durable Local Queue.
+- **Mobile App:** Flutter, Dart, Camera Barcode Scanner, Live Push Telemetry.
+
+## API Endpoints
+- `POST /api/v1/auth/login`: Authenticate cashier or administrator with JWT tokens.
+- `POST /api/v1/pos/checkout`: Atomic POS checkout with stock decrement and payment recording.
+- `POST /api/v1/pos/returns`: Supervisor-authorized refund processing with shrinkage classification.
+- `GET /api/v1/inventory/balances`: Real-time stock balance query with low-stock alerts.
+- `POST /api/v1/sync/push`: Idempotent batch sync from offline desktop terminals.
+- `POST /api/v1/ai/chat`: Zero-trust tenant-isolated business advisor.

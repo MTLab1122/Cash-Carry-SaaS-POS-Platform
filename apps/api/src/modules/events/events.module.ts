@@ -7,3 +7,4 @@ import { EventsGateway } from './events.gateway';
   exports: [EventsGateway],
 })
 export class EventsModule {}
+

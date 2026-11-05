@@ -47,3 +47,4 @@ export function generateInternalEan13(productIdNumber: number): string {
 export function formatCode128(input: string): string {
   return input.toUpperCase().replace(/[^A-Z0-9\-_.]/g, '');
 }
+

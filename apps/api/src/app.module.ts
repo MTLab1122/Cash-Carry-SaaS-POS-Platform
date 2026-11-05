@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -16,6 +16,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { SyncModule } from './modules/sync/sync.module';
 import { AiModule } from './modules/ai/ai.module';
 import { EventsModule } from './modules/events/events.module';
+import { RateLimiterMiddleware } from './common/middleware/rate-limiter.middleware';
 
 @Module({
   imports: [
@@ -38,4 +39,8 @@ import { EventsModule } from './modules/events/events.module';
     EventsModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RateLimiterMiddleware).forRoutes('*');
+  }
+}

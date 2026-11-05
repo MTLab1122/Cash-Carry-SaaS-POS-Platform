@@ -8,3 +8,4 @@ contextBridge.exposeInMainWorld('electronPos', {
   printReceipt: (receiptHtml: string) => ipcRenderer.invoke('hardware:print-receipt', receiptHtml),
   kickCashDrawer: () => ipcRenderer.invoke('hardware:kick-cash-drawer'),
 });
+

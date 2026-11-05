@@ -32,3 +32,4 @@ export class CustomersController {
     return this.customersService.recordPayment(tenantId, customerId, Number(body.amount) || 0, body.notes);
   }
 }
+

@@ -1,0 +1,26 @@
+# Enterprise Cash & Carry Management & POS SaaS — Full Technical Reference
+
+## 1. Domain & Mission
+Enterprise Cash & Carry SaaS is designed for large-scale grocery stores, supermarkets, cash-and-carry wholesalers, and retail chains in Pakistan and South Asia. It bridges offline physical checkout speeds (<500ms per barcode scan) with modern cloud enterprise multi-store inventory synchronization and AI analytics.
+
+## 2. Multi-Tenant Architecture & Data Isolation
+- Every relational query across all models (`User`, `Product`, `Sale`, `InventoryBalance`, `CustomerLedgerEntry`, `SyncQueue`) requires an explicit `tenantId`.
+- Super Admin possesses global visibility across tenants for subscription provisioning, usage auditing, and platform management.
+- Business Owners and Branch Managers operate strictly within their provisioned `tenantId`. Branch Managers and Cashiers are further constrained to their designated `branchId`.
+
+## 3. Financial & Inventory Invariants
+1. Stock Depletion: Sales must decrement `InventoryBalance.currentStock` atomically within a database transaction.
+2. Ledger Immutability: Every stock movement (SALE, PURCHASE, ADJUSTMENT, RETURN, DAMAGE) creates an append-only `StockLedger` entry.
+3. Blind Shift Close: Cashiers submit closing cash amounts blindly without seeing expected totals. Any variance (overage/shortage) is logged to the shift audit trail.
+4. Returns & Shrinkage: Defective or expired items are segregated into `ShrinkageLedger` with disposition status `DAMAGED` and do not re-enter sellable inventory.
+
+## 4. Hardware & Offline POS Invariants
+- Desktop POS works fully offline via a local transactional JSON/SQLite durable storage engine.
+- Outbox sync daemon batches mutations and replays with exponential backoff and `X-Idempotency-Key` headers to guarantee exactly-once processing.
+- Supports ESC/POS 80mm/58mm thermal receipt printers, USB/Bluetooth 1D/2D barcode scanners, and RJ11 cash drawer kicks.
+
+## 5. Security & Authentication
+- Password hashing using bcrypt (cost 12) or Argon2id.
+- Password reset using 32-byte cryptographic hex tokens stored as SHA-256 hashes with 15-minute TTL.
+- Rate limiting: Max 5 auth attempts per 15 minutes per IP/email; 100 requests per minute globally.
+- RFC 7807 Problem Details compliant error responses.

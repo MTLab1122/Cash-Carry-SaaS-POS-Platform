@@ -10,3 +10,4 @@ import { PosModule } from '../pos/pos.module';
   exports: [SyncService],
 })
 export class SyncModule {}
+

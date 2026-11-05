@@ -10,6 +10,13 @@
     "test": "turbo run test",
     "clean": "turbo run clean",
     "seed": "pnpm --filter @cash-carry/database seed",
+    "test:security": "pnpm --filter @cash-carry/database test:security",
+    "test:routing": "pnpm --filter @cash-carry/database test:routing",
+    "test:seo": "pnpm --filter @cash-carry/database test:seo",
+    "test:financials": "pnpm --filter @cash-carry/database test:financials",
+    "test:ai-isolation": "pnpm --filter @cash-carry/database test:ai-isolation",
+    "test:offline-sync": "pnpm --filter @cash-carry/database test:offline-sync",
+    "test:e2e": "pnpm --filter @cash-carry/database test:e2e",
     "db:push": "pnpm --filter @cash-carry/database db:push",
     "db:generate": "pnpm --filter @cash-carry/database generate"
   },
@@ -18,3 +25,4 @@
     "typescript": "^5.4.5"
   }
 }
+

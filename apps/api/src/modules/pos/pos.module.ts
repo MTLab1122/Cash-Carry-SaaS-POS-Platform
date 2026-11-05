@@ -8,3 +8,4 @@ import { PosController } from './pos.controller';
   exports: [PosService],
 })
 export class PosModule {}
+

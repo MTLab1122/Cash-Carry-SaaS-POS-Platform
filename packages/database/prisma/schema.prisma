@@ -120,25 +120,32 @@ model Warehouse {
 }
 
 model User {
-  id                String    @id @default(uuid())
-  tenantId          String
-  branchId          String?
-  name              String
-  email             String
-  passwordHash      String
-  role              String    // SUPER_ADMIN, BUSINESS_OWNER, BRANCH_MANAGER, CASHIER, etc.
-  phone             String?
-  isActive          Boolean   @default(true)
-  twoFactorEnabled  Boolean   @default(false)
-  lastLoginAt       DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                    String    @id @default(uuid())
+  tenantId              String
+  branchId              String?
+  name                  String
+  email                 String
+  passwordHash          String
+  role                  String    // SUPER_ADMIN, BUSINESS_OWNER, BRANCH_MANAGER, CASHIER, etc.
+  phone                 String?
+  isActive              Boolean   @default(true)
+  emailVerified         Boolean   @default(true)
+  verificationToken     String?
+  resetPasswordToken    String?
+  resetPasswordExpires  DateTime?
+  refreshTokenHash      String?
+  twoFactorEnabled      Boolean   @default(false)
+  lastLoginAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch       Branch?       @relation(fields: [branchId], references: [id])
   cashSessions CashSession[]
   sales        Sale[]
   auditLogs    AuditLog[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
 
   @@unique([tenantId, email])
 }
@@ -189,6 +196,7 @@ model Product {
   saleItems         SaleItem[]
   grnItems          GoodsReceiptItem[]
   poItems           PurchaseOrderItem[]
+  shrinkageLedgers  ShrinkageLedger[]
 
   @@unique([tenantId, sku])
   @@index([tenantId, barcode])
@@ -303,6 +311,7 @@ model Customer {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sales  Sale[]
+  ledgerEntries CustomerLedgerEntry[]
 
   @@unique([tenantId, phone])
 }
@@ -548,3 +557,107 @@ model SyncQueue {
 
   @@index([deviceId, status])
 }
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique // SHA-256 hash of 32-byte crypto token
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, tokenHash])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, tokenHash])
+}
+
+model CustomerLedgerEntry {
+  id                String   @id @default(uuid())
+  tenantId          String
+  customerId        String
+  transactionId     String?
+  entryType         String   // DEBIT, CREDIT
+  amountCents       Int
+  balanceAfterCents Int
+  notes             String?
+  hashChain         String?
+  createdAt         DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, customerId])
+}
+
+model ShrinkageLedger {
+  id         String   @id @default(uuid())
+  tenantId   String
+  branchId   String
+  productId  String
+  quantity   Float
+  unitCost   Float
+  reason     String   // DAMAGED, EXPIRED, RETURN_DAMAGED
+  saleId     String?
+  notes      String?
+  recordedBy String
+  createdAt  DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, productId])
+}
+
+model AITenantConfig {
+  id                  String   @id @default(uuid())
+  tenantId            String   @unique
+  provider            String   @default("OPENAI") // OPENAI, ANTHROPIC, GEMINI, OLLAMA
+  model               String   @default("gpt-4o")
+  temperature         Float    @default(0.2)
+  encryptedApiKey     String?  // AES-256-GCM encrypted
+  iv                  String?
+  authTag             String?
+  monthlyBudgetTokens Int      @default(500000)
+  usedTokensMonth     Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model AIUsageLedger {
+  id               String   @id @default(uuid())
+  tenantId         String
+  userId           String?
+  promptTokens     Int
+  completionTokens Int
+  totalTokens      Int
+  costEstimate     Float    @default(0)
+  provider         String
+  model            String
+  createdAt        DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+model ProcessedMutation {
+  id           String   @id @default(uuid())
+  tenantId     String
+  mutationId   String   @unique // X-Idempotency-Key
+  entityType   String
+  responseBody String   // Cached JSON response
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId, mutationId])
+}
+
+

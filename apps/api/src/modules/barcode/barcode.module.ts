@@ -8,3 +8,4 @@ import { BarcodeController } from './barcode.controller';
   exports: [BarcodeService],
 })
 export class BarcodeModule {}
+

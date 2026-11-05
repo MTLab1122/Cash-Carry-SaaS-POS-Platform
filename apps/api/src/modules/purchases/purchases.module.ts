@@ -8,3 +8,4 @@ import { PurchasesController } from './purchases.controller';
   exports: [PurchasesService],
 })
 export class PurchasesModule {}
+

@@ -46,3 +46,4 @@ export class FinanceController {
     return this.financeService.getProfitLossSummary(tenantId, branchId || userBranchId);
   }
 }
+

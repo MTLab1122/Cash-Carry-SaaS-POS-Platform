@@ -44,3 +44,4 @@ export class ReportsController {
     return this.reportsService.getCashierPerformance(tenantId, branchId || userBranchId);
   }
 }
+

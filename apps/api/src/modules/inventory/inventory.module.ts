@@ -8,3 +8,4 @@ import { InventoryController } from './inventory.controller';
   exports: [InventoryService],
 })
 export class InventoryModule {}
+

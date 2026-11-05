@@ -1,25 +1,117 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EncryptionService } from './encryption.service';
+import { PiiScrubberService } from './pii-scrubber.service';
+import { OpenAIProvider } from './providers/openai.provider';
+import { AnthropicProvider } from './providers/anthropic.provider';
+import { GoogleGeminiProvider } from './providers/gemini.provider';
+import { LocalOllamaProvider } from './providers/ollama.provider';
+import { ILLMProvider } from './providers/llm-provider.interface';
 
 @Injectable()
 export class AiService {
-  constructor(private prisma: PrismaService) {}
+  private readonly providers: Record<string, ILLMProvider>;
+
+  constructor(
+    private prisma: PrismaService,
+    private encryptionService: EncryptionService,
+    private piiScrubber: PiiScrubberService,
+    private openAiProvider: OpenAIProvider,
+    private anthropicProvider: AnthropicProvider,
+    private geminiProvider: GoogleGeminiProvider,
+    private ollamaProvider: LocalOllamaProvider,
+  ) {
+    this.providers = {
+      OPENAI: this.openAiProvider,
+      ANTHROPIC: this.anthropicProvider,
+      GEMINI: this.geminiProvider,
+      OLLAMA: this.ollamaProvider,
+    };
+  }
+
+  async configureTenantAI(params: {
+    tenantId: string;
+    provider: 'OPENAI' | 'ANTHROPIC' | 'GEMINI' | 'OLLAMA';
+    model?: string;
+    apiKey?: string;
+    monthlyBudgetTokens?: number;
+  }) {
+    const { tenantId, provider, model = 'gpt-4o', apiKey, monthlyBudgetTokens = 500000 } = params;
+
+    let encryptedApiKey: string | undefined = undefined;
+    let iv: string | undefined = undefined;
+    let authTag: string | undefined = undefined;
+
+    if (apiKey) {
+      const encryptedData = this.encryptionService.encryptApiKey(apiKey);
+      encryptedApiKey = encryptedData.encrypted;
+      iv = encryptedData.iv;
+      authTag = encryptedData.authTag;
+    }
+
+    return this.prisma.aITenantConfig.upsert({
+      where: { tenantId },
+      update: {
+        provider,
+        model,
+        ...(encryptedApiKey ? { encryptedApiKey, iv, authTag } : {}),
+        monthlyBudgetTokens,
+      },
+      create: {
+        tenantId,
+        provider,
+        model,
+        encryptedApiKey,
+        iv,
+        authTag,
+        monthlyBudgetTokens,
+        usedTokensMonth: 0,
+      },
+    });
+  }
 
   async processQuery(params: {
     tenantId: string;
     branchId?: string;
+    userId?: string;
     userRole: string;
     query: string;
   }) {
-    const { tenantId, branchId, userRole, query } = params;
-    const lowerQuery = query.toLowerCase();
+    const { tenantId, branchId, userId, userRole, query } = params;
 
-    // 1. Gather tenant data securely
+    // 1. Scrub PII from incoming prompt
+    const scrubbedQuery = this.piiScrubber.scrub(query);
+
+    // 2. Fetch or initialize Tenant AI Configuration & Budget
+    let config = await this.prisma.aITenantConfig.findUnique({
+      where: { tenantId },
+    });
+
+    if (!config) {
+      config = await this.prisma.aITenantConfig.create({
+        data: {
+          tenantId,
+          provider: 'OPENAI',
+          model: 'gpt-4o',
+          monthlyBudgetTokens: 500000,
+          usedTokensMonth: 0,
+        },
+      });
+    }
+
+    // Circuit Breaker: Enforce monthly token budget
+    if (config.usedTokensMonth >= config.monthlyBudgetTokens) {
+      throw new ForbiddenException(
+        `Monthly AI token limit reached (${config.usedTokensMonth}/${config.monthlyBudgetTokens}). Upgrade your subscription or increase token allowance.`,
+      );
+    }
+
+    // 3. Gather Tenant Data with Strict Multi-Tenant Isolation
     const [sales, products, expenses] = await Promise.all([
       this.prisma.sale.findMany({
         where: { tenantId, status: 'COMPLETED' },
         include: { items: true },
-        take: 100,
+        take: 50,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.product.findMany({
@@ -28,10 +120,11 @@ export class AiService {
           inventoryBalances: branchId ? { where: { branchId } } : true,
           category: true,
         },
+        take: 50,
       }),
       this.prisma.expense.findMany({
         where: { tenantId },
-        take: 50,
+        take: 20,
       }),
     ]);
 
@@ -42,127 +135,86 @@ export class AiService {
       return stock <= p.minStockLevel;
     });
 
-    // 2. Intelligent pattern matching & forecasting
-    if (lowerQuery.includes('profit') || lowerQuery.includes('margin') || lowerQuery.includes('revenue') || lowerQuery.includes('performance')) {
-      const grossMargin = totalSalesRevenue > 0 ? (((totalSalesRevenue - totalExpensesAmount) / totalSalesRevenue) * 100).toFixed(1) : '27.5';
-      return {
-        query,
-        answer: `Based on your recent transaction ledger of ${sales.length} orders:
-• Total Recorded Revenue: PKR ${totalSalesRevenue.toLocaleString()}
-• Operational Expenses: PKR ${totalExpensesAmount.toLocaleString()}
-• Estimated Net Profit Margin: ${grossMargin}%
-• Top performing category: Groceries (42% volume share) followed by Beverages (28%).
-Recommendation: Weekend sales are tracking 25% higher than weekdays. Ensure adequate cashier staffing during Friday-Sunday peak hours.`,
-        dataPoints: {
-          totalSales: totalSalesRevenue,
-          totalExpenses: totalExpensesAmount,
-          margin: `${grossMargin}%`,
-        },
-        suggestions: [
-          'What are my slow moving products?',
-          'Recommend reorder quantities for next week',
-          'Show cashier efficiency breakdown',
-        ],
-        generatedAt: new Date().toISOString(),
-      };
+    // 4. Construct System & Context Prompt with Zero PII
+    const systemPrompt = `You are an AI Business Advisor for an enterprise retail Cash & Carry in Pakistan.
+All currency figures are in PKR.
+Tax rate is standard 18% GST.
+Current tenant business has recorded PKR ${totalSalesRevenue.toLocaleString()} in recent sales across ${sales.length} orders.
+Operational expenses are PKR ${totalExpensesAmount.toLocaleString()}.
+There are ${lowStockProducts.length} items currently below safety threshold.`;
+
+    // 5. Decrypt BYOK API Key if provided
+    let rawApiKey: string | undefined = undefined;
+    if (config.encryptedApiKey && config.iv && config.authTag) {
+      try {
+        rawApiKey = this.encryptionService.decryptApiKey(
+          config.encryptedApiKey,
+          config.iv,
+          config.authTag,
+        );
+      } catch (err) {
+        // Fallback gracefully if decryption key differs
+      }
     }
 
-    if (lowerQuery.includes('stock') || lowerQuery.includes('inventory') || lowerQuery.includes('reorder') || lowerQuery.includes('low')) {
-      const itemsList = lowStockProducts.slice(0, 5).map((p) => `${p.name} (Min: ${p.minStockLevel})`).join(', ');
-      return {
-        query,
-        answer: `Inventory Intelligence Analysis:
-• Low stock alerts detected on ${lowStockProducts.length} items.
-• Critical items requiring supplier reorder: ${itemsList || 'None currently below safety threshold'}.
-• Demand Forecast: Due to upcoming seasonal demand, Cooking Oils and Rice are expected to see a 15-20% uptick in velocity next week.
-Recommendation: Create a Purchase Order with Dalda and Shan Foods distributors before Thursday delivery cutoff.`,
-        dataPoints: {
-          lowStockCount: lowStockProducts.length,
-          criticalItems: lowStockProducts.slice(0, 5).map((p) => p.name),
+    // 6. Invoke Selected Provider Adapter
+    const providerKey = config.provider.toUpperCase();
+    const provider = this.providers[providerKey] || this.openAiProvider;
+
+    const completion = await provider.generateResponse(scrubbedQuery, systemPrompt, {
+      temperature: config.temperature,
+      apiKey: rawApiKey,
+    });
+
+    // 7. Record AI Usage Ledger atomically & increment token counter
+    await this.prisma.$transaction(async (tx) => {
+      await tx.aIUsageLedger.create({
+        data: {
+          tenantId,
+          userId,
+          promptTokens: completion.usage.promptTokens,
+          completionTokens: completion.usage.completionTokens,
+          totalTokens: completion.usage.totalTokens,
+          costEstimate: (completion.usage.totalTokens / 1000) * 0.002, // ~$0.002 per 1k tokens
+          provider: completion.provider,
+          model: completion.model,
         },
-        suggestions: [
-          'Generate draft PO for low stock items',
-          'Which products have highest profit margins?',
-          'What are today\'s sales figures?',
-        ],
-        generatedAt: new Date().toISOString(),
-      };
-    }
+      });
 
-    if (lowerQuery.includes('best') || lowerQuery.includes('top') || lowerQuery.includes('selling') || lowerQuery.includes('fast')) {
-      return {
-        query,
-        answer: `Top Best-Selling Items by Volume & Revenue:
-1. Olper's Full Cream Milk 1 Litre (High Velocity - Everyday Essential)
-2. Fresh Red Apples 1kg (Consistent daily grocery demand)
-3. Shan Bombay Biryani Masala 50g (High turnover, 20% margin)
-4. Dawn Bread Plain Large (High morning basket incidence)
-5. Dalda Premium Cooking Oil 5L (Highest revenue per ticket item)
-
-Cross-sell insight: 64% of baskets containing Milk also purchase Bread or Tea within the same transaction.`,
-        dataPoints: {
-          topProducts: ['Olper\'s Milk 1L', 'Fresh Red Apples 1kg', 'Shan Biryani Masala', 'Dawn Bread', 'Dalda Oil 5L'],
-          basketCorrelation: 'Milk + Bread + Tea = 64%',
+      await tx.aITenantConfig.update({
+        where: { tenantId },
+        data: {
+          usedTokensMonth: { increment: completion.usage.totalTokens },
         },
-        suggestions: [
-          'How can I optimize bundle promotions?',
-          'What is the store profit summary?',
-        ],
-        generatedAt: new Date().toISOString(),
-      };
-    }
+      });
+    });
 
-    // Default business advisor summary
     return {
-      query,
-      answer: `Cash & Carry AI Business Advisor Summary:
-Your store is operating normally. Recent transactions show strong customer retention with an average ticket size of PKR 715. Stock turnover is healthy across 8 product categories. 
-
-You can ask me questions such as:
-- "What is our current profitability and margin?"
-- "Which products are low on stock and need reordering?"
-- "What are our top best-selling items?"
-- "Predict product demand for next week"`,
+      query: scrubbedQuery,
+      answer: completion.text,
+      provider: completion.provider,
+      model: completion.model,
+      usage: completion.usage,
       dataPoints: {
-        activeCategories: 8,
-        averageTicketPKR: 715,
+        totalSales: totalSalesRevenue,
+        totalExpenses: totalExpensesAmount,
+        lowStockCount: lowStockProducts.length,
       },
       suggestions: [
-        'Analyze my store profitability',
-        'Show low stock items',
-        'Who is my top performing cashier?',
+        'Recommend reorder quantities for next week',
+        'Show gross profit margin breakdown',
+        'Analyze top 5 best selling grocery items',
       ],
       generatedAt: new Date().toISOString(),
     };
   }
 
   async getInventoryInsights(tenantId: string, branchId?: string) {
-    const products = await this.prisma.product.findMany({
-      where: { tenantId, isActive: true },
-      include: {
-        inventoryBalances: branchId ? { where: { branchId } } : true,
-      },
+    return this.processQuery({
+      tenantId,
+      branchId,
+      userRole: 'BUSINESS_OWNER',
+      query: 'Analyze low stock items and provide inventory replenishment recommendations',
     });
-
-    const recommendations = products.map((p) => {
-      const stock = p.inventoryBalances.reduce((sum, b) => sum + b.currentStock, 0);
-      const isUrgent = stock <= p.minStockLevel;
-      const suggestedReorder = isUrgent ? Math.max(20, p.minStockLevel * 3 - stock) : 0;
-      return {
-        productId: p.id,
-        name: p.name,
-        sku: p.sku,
-        currentStock: stock,
-        minStockLevel: p.minStockLevel,
-        status: isUrgent ? 'REORDER_NOW' : 'HEALTHY',
-        suggestedReorderQuantity: suggestedReorder,
-        estimatedWeeklyConsumption: Math.round(p.minStockLevel * 1.5),
-      };
-    });
-
-    return {
-      insightsCount: recommendations.filter((r) => r.status === 'REORDER_NOW').length,
-      recommendations,
-    };
   }
 }

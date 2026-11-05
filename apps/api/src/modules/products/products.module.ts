@@ -10,3 +10,4 @@ import { BarcodeModule } from '../barcode/barcode.module';
   exports: [ProductsService],
 })
 export class ProductsModule {}
+

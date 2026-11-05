@@ -69,3 +69,4 @@ class ApiService {
     return 'Your store sales are tracking 14.2% higher today. Top moving products are Olper\'s Milk 1L and Fresh Apples.';
   }
 }
+

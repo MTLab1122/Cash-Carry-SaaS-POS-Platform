@@ -95,3 +95,4 @@ export class LocalOfflineDatabase {
     return this.cachedProducts;
   }
 }
+

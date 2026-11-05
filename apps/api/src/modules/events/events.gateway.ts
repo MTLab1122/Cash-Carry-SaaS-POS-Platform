@@ -41,3 +41,4 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`tenant-${tenantId}`).emit('low-stock-alert', alertData);
   }
 }
+
