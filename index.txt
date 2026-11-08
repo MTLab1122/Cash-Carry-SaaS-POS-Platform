@@ -1,0 +1,13 @@
+2:I[5416,[],"ClientPageRoot"]
+3:I[8811,["26","static/chunks/26-61742704465b5ae7.js","931","static/chunks/app/page-e26cc7ee4155ff08.js"],"default",1]
+4:I[585,["26","static/chunks/26-61742704465b5ae7.js","862","static/chunks/862-1dbfae8d66ef9e2c.js","185","static/chunks/app/layout-80e04b4a77a47b48.js"],"AuthProvider"]
+5:I[1545,["26","static/chunks/26-61742704465b5ae7.js","862","static/chunks/862-1dbfae8d66ef9e2c.js","185","static/chunks/app/layout-80e04b4a77a47b48.js"],"default"]
+6:I[8672,["26","static/chunks/26-61742704465b5ae7.js","862","static/chunks/862-1dbfae8d66ef9e2c.js","185","static/chunks/app/layout-80e04b4a77a47b48.js"],"default"]
+7:I[2728,[],""]
+8:I[2206,["26","static/chunks/26-61742704465b5ae7.js","601","static/chunks/app/error-fc6d17d6105b7825.js"],"default"]
+9:I[9836,[],""]
+a:I[336,["26","static/chunks/26-61742704465b5ae7.js","160","static/chunks/app/not-found-f94a19f26c44ff0d.js"],"default"]
+b:I[4449,["26","static/chunks/26-61742704465b5ae7.js","862","static/chunks/862-1dbfae8d66ef9e2c.js","185","static/chunks/app/layout-80e04b4a77a47b48.js"],"CommandPalette"]
+0:["NBz5srtO9tMwUepQCURB8",[[["",{"children":["__PAGE__",{}]},"$undefined","$undefined",true],["",{"children":["__PAGE__",{},[["$L1",["$","$L2",null,{"props":{"params":{},"searchParams":{}},"Component":"$3"}],null],null],null]},[[[["$","link","0",{"rel":"stylesheet","href":"/Cash-Carry-SaaS-POS-Platform/_next/static/css/9e5387168ad69cd6.css","precedence":"next","crossOrigin":"$undefined"}]],["$","html",null,{"lang":"en","children":["$","body",null,{"className":"min-h-screen bg-slate-100 flex flex-col font-sans","children":["$","$L4",null,{"children":[["$","div",null,{"className":"flex flex-1 min-h-screen","children":[["$","$L5",null,{}],["$","div",null,{"className":"flex-1 flex flex-col min-w-0","children":[["$","$L6",null,{}],["$","main",null,{"className":"flex-1 p-6 overflow-y-auto","children":["$","$L7",null,{"parallelRouterKey":"children","segmentPath":["children"],"error":"$8","errorStyles":[],"errorScripts":[],"template":["$","$L9",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":["$","$La",null,{}],"notFoundStyles":[]}]}]]}]]}],["$","$Lb",null,{}]]}]}]}]],null],null],["$Lc",null]]]]
+c:[["$","meta","0",{"name":"viewport","content":"width=device-width, initial-scale=1"}],["$","meta","1",{"charSet":"utf-8"}],["$","title","2",{"children":"Enterprise Cash & Carry Management & POS SaaS"}],["$","meta","3",{"name":"description","content":"Production-grade Multi-Tenant POS & Management System for Supermarkets and Retailers"}]]
+1:null

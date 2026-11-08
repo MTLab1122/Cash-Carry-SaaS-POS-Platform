@@ -1,0 +1,19 @@
+User-Agent: *
+Allow: /
+Allow: /landing
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /admin
+Disallow: /api/
+Disallow: /settings
+
+User-Agent: PerplexityBot
+User-Agent: GPTBot
+User-Agent: ClaudeBot
+User-Agent: Google-Extended
+Allow: /
+Allow: /landing
+Allow: /llms.txt
+Allow: /llms-full.txt
+
+Sitemap: https://cashcarry.pk/sitemap.xml
