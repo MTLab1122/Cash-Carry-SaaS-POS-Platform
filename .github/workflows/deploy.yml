@@ -1,0 +1,53 @@
+name: Deploy Web Showcase to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @cash-carry/database generate
+
+      - name: Build Next.js Web App (Static Export)
+        run: |
+          pnpm --filter @cash-carry/web build
+        env:
+          NEXT_EXPORT: 'true'
+          BASE_PATH: '/Cash-Carry-SaaS-POS-Platform'
+          NEXT_PUBLIC_BASE_PATH: '/Cash-Carry-SaaS-POS-Platform'
+
+      - name: Add .nojekyll to Export
+        run: touch apps/web/out/.nojekyll
+
+      - name: Deploy to GitHub Pages Branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./apps/web/out
+          publish_branch: gh-pages
+          force_orphan: true
